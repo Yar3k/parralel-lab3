@@ -1,90 +1,69 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Threading.Tasks;
+﻿using System.Diagnostics;
+using System.Runtime.InteropServices;
 class Program
 {
     private static readonly object _lock = new object();
 
-    // static void Main(string[] args)
-    // {
-    //     int start = 1;
-    //     int end = 1_000_000_000;
-    //     (long, long) biggestItteration = (0, 0);
-
-    //     // Get the number of available processors
-    //     int processorCount = Environment.ProcessorCount;
-
-    //     System.Console.WriteLine(processorCount);
-
-    //     // Split the range into chunks for each core
-    //     var ranges = SplitRange(start, end, processorCount);
-
-    //     // Create a task for each range
-    //     var tasks = ranges.Select(range =>
-    //         Task.Run(() =>
-    //         {
-    //             for (int i = range.Item1; i <= range.Item2; i++)
-    //             {
-    //                 collatzConjecture(i, ref biggestItteration);
-    //             }
-    //         })
-    //     ).ToArray();
-
-    //     // Wait for all tasks to complete
-    //     Task.WaitAll(tasks);
-
-    //     Console.WriteLine("Searching completed.");
-    //     System.Console.WriteLine($"Biggest found {biggestItteration.Item1} with len: {biggestItteration.Item2}");
-    // }
-
-    static void Main()
+    static void Main(string[] args)
     {
-        AutoResetEvent mainEvent = new AutoResetEvent(false);
-        int workerThreads;
-        int portThreads;
+        int start;
+        int end;
+        string mode;
+        (long, long) biggestItteration = (0, 0);
+        int processors;
 
-        Process.GetCurrentProcess().ProcessorAffinity = new IntPtr(3);  
-
-
-        // Get the number of available processors
-        int processorCount = Environment.ProcessorCount;
-
-        System.Console.WriteLine(processorCount);
-
-
-        ThreadPool.GetMaxThreads(out workerThreads, out portThreads);
-        Console.WriteLine("\nMaximum worker threads: \t{0}" +
-            "\nMaximum completion port threads: {1}",
-            workerThreads, portThreads);
-
-        ThreadPool.GetAvailableThreads(out workerThreads, 
-            out portThreads);
-        Console.WriteLine("\nAvailable worker threads: \t{0}" +
-            "\nAvailable completion port threads: {1}\n",
-            workerThreads, portThreads);
-
-    }
-
-    static List<Tuple<int, int>> SplitRange(int start, int end, int chunks)
-    {
-        int rangeSize = (end - start + 1) / chunks;
-        var ranges = new List<Tuple<int, int>>();
-
-        for (int i = 0; i < chunks; i++)
+        if (args.Length < 3)
         {
-            int rangeStart = start + i * rangeSize;
-            int rangeEnd = (i == chunks - 1) ? end : rangeStart + rangeSize - 1;
+            Console.WriteLine("Please provide required arguments: dotnet run <interval_from> <interval_to> <mode[normal|debug](optional)> <processors_count(optional)>");
+            return;
+        }
+        start = int.Parse(args[0]);
+        end = int.Parse(args[1]);
+        mode = args[2];
+        processors = args.Length == 4 ? int.Parse(args[3]) : Environment.ProcessorCount;
 
-            ranges.Add(Tuple.Create(rangeStart, rangeEnd));
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) || RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            int affinity = (int)Math.Pow(2, processors) - 1;
+            Process.GetCurrentProcess().ProcessorAffinity = new IntPtr(affinity);
+        }
+        else
+        {
+            Console.WriteLine($"Environment is nething Linux, neither Windows! Will be used maximum available processors ({Environment.ProcessorCount})");
         }
 
-        return ranges;
+
+        Stopwatch stopWatch = new Stopwatch();
+        stopWatch.Start();
+
+
+        Parallel.For(1, end + 1, () =>
+        (long.MaxValue, 0L),
+        (i, state, localMax) =>
+        {
+            var result = collatzConjecture(i);
+            return result.Item2 > localMax.Item2 ? result : localMax;
+        },
+        localMax =>
+        {
+            lock (_lock)
+            {
+                if (localMax.Item2 > biggestItteration.Item2)
+                    biggestItteration = localMax;
+            }
+        }
+    );
+
+        stopWatch.Stop();
+        TimeSpan elapsedTime = stopWatch.Elapsed;
+
+        Console.WriteLine("RunTime " + elapsedTime);
+        Console.WriteLine($"Biggest found {biggestItteration.Item1} with len: {biggestItteration.Item2}");
     }
 
-    static void collatzConjecture(long n, ref (long, long) biggestItteration)
+    static (long, long) collatzConjecture(long n)
     {
+        Console.WriteLine($"Checking {n}");
         long initN = n;
         long iteration = 0;
 
@@ -93,16 +72,11 @@ class Program
             iteration++;
             if ((n & 1) == 1)
                 n = 3 * n + 1;
-     
             else
                 n = n / 2;
         }
-
-        if (iteration > biggestItteration.Item2){
-            lock(_lock){
-                biggestItteration = (initN, iteration);
-            }
-            System.Console.WriteLine($"Biggest found {initN} with len: {iteration}");
-        }
+        return (initN, iteration);
     }
+
+
 }
