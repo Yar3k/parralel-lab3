@@ -17,7 +17,7 @@ class Program
             Console.WriteLine("Please provide required arguments: dotnet run <interval_from> <interval_to> <mode[normal|debug]> <processors_count(optional)>");
             return;
         }
-        
+
         start = int.Parse(args[0]);
         end = int.Parse(args[1]);
 
@@ -44,8 +44,8 @@ class Program
         stopWatch.Start();
 
 
-        Parallel.For(1, end + 1, () =>
-        (long.MaxValue, 0L),
+        Parallel.For(start, end + 1, () =>
+        (0L, 0L),
         (i, state, localMax) =>
         {
             var result = collatzConjecture(i);
