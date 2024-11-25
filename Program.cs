@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Net;
 using System.Runtime.InteropServices;
 class Program
 {
@@ -27,9 +28,12 @@ class Program
             return;
         }
 
-        processors = args.Length == 4 ? int.Parse(args[3]) : Environment.ProcessorCount;
-
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) || RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        processors = args.Length == 4 ? int.Parse(args[3]) : 0;
+        
+        if (processors == 0){
+            // Do not mess with ProcessorAffinity, if it is not set (recommended if you run this app in batches on single machine)
+        }
+        else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) || RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             int affinity = (int)Math.Pow(2, processors) - 1;
             Process.GetCurrentProcess().ProcessorAffinity = new IntPtr(affinity);
